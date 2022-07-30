@@ -1,17 +1,19 @@
-FROM jenkins/inbound-agent:latest-alpine
+FROM jenkins/inbound-agent:latest-jdk11
 
 # Build variables
-ARG SCALA_VERSION=2.12.12
-ARG SBT_VERSION=1.3.13
+ARG SCALA_VERSION=2.12.14
+ARG SBT_VERSION=1.5.4
 
 # Environment variables
 ENV SBT_HOME=/usr/share/sbt
 
 USER root
 
+RUN apt-get update && apt-get -y install apt-utils
+
 # Install and keep a copy of bash.  Some scala/scalac scripts depend on bash(!),
 # and work unreliably with ash, et al.
-RUN apk add --no-cache bash
+RUN apt-get -y install bash
 
 # Install SBT
 #
@@ -28,10 +30,9 @@ RUN apk add --no-cache bash
 #
 # But we don't want to depend on something outside of the stable alpine
 # tracking.
-RUN apk add --no-cache --virtual=build-deps curl && \
+RUN apt-get -y install curl && \
     # Install sbt base
     mkdir -p "${SBT_HOME}" && \
-    set -o pipefail && \
     curl -fsL "https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz" \
       | tar xfz - --strip-components=1 -C "${SBT_HOME}" && \
     ln -s "${SBT_HOME}"/bin/sbt /usr/local/bin/sbt && \
@@ -39,9 +40,7 @@ RUN apk add --no-cache --virtual=build-deps curl && \
     sbt ++"${SCALA_VERSION}" sbtVersion && \
     # Get rid of Windows specific files
     rm "${SBT_HOME}"/bin/sbt.bat && \
-    rm "${SBT_HOME}"/conf/sbtconfig.txt && \
-    # Get rid of build-dependencies we only needed for this install step
-    apk del build-deps
+    rm "${SBT_HOME}"/conf/sbtconfig.txt 
 
 # Verify SBT is installed successfully.
 #
@@ -76,3 +75,4 @@ RUN \
   sbt compile && \
   rm -r project && rm build.sbt && rm Temp.scala && rm -r target
 
+ENTRYPOINT ["/usr/local/bin/jenkins-agent"]
